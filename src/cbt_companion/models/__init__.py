@@ -12,6 +12,12 @@ from cbt_companion.models.raw_conversation import (
     RawConversation,
     RawMessage,
 )
+from cbt_companion.models.validation_report import (
+    ConversationValidationResult,
+    ValidationConfig,
+    ValidationReport,
+)
+from cbt_companion.models.filter_report import FilterReport
 
 __all__ = [
     "DatasetConfig",
@@ -23,5 +29,8 @@ __all__ = [
     "Message",
     "ConversationMetadata",
     "Conversation",
+    "ValidationConfig",
+    "ConversationValidationResult",
+    "ValidationReport",
+    "FilterReport",
 ]
-
