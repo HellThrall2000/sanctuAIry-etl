@@ -19,6 +19,7 @@ from cbt_companion.models.validation_report import (
     ValidationConfig,
     ValidationReport,
 )
+from cbt_companion.models.statistics_report import StatisticsReport
 
 __all__ = [
     "DatasetConfig",
@@ -35,4 +36,5 @@ __all__ = [
     "ValidationReport",
     "FilterReport",
     "MergeReport",
+    "StatisticsReport",
 ]
