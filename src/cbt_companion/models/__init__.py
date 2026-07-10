@@ -12,6 +12,7 @@ from cbt_companion.models.raw_conversation import (
     RawConversation,
     RawMessage,
 )
+from cbt_companion.models.merge_report import MergeReport
 
 __all__ = [
     "DatasetConfig",
@@ -23,5 +24,5 @@ __all__ = [
     "Message",
     "ConversationMetadata",
     "Conversation",
+    "MergeReport",
 ]
-
