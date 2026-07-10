@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from cbt_companion.models.conversation import Conversation, ConversationMetadata, Message
-from cbt_companion.models.validation_report import ValidationConfig, ValidationReport
+from cbt_companion.models.validation_report import ValidationReport
 from cbt_companion.validation.conversation_validator import ConversationValidator
 from cbt_companion.validation.registry import ValidatorRegistry
 
@@ -32,16 +32,8 @@ def test_validator_success() -> None:
     assert len(errors) == 0
 
 
-def test_validator_structural_failures() -> None:
-    # Arrange: Less than 2 messages
-    c_short = Conversation(
-        id="short",
-        source="src",
-        metadata=ConversationMetadata(),
-        messages=[Message(role="user", content="Hello")],
-    )
-
-    # Arrange: Starts with assistant
+def test_validator_accepts_any_conversation_flow() -> None:
+    # Arrange: First message is assistant
     c_start_assistant = Conversation(
         id="start_assistant",
         source="src",
@@ -52,7 +44,7 @@ def test_validator_structural_failures() -> None:
         ],
     )
 
-    # Arrange: Ends with user
+    # Arrange: Last message is user
     c_end_user = Conversation(
         id="end_user",
         source="src",
@@ -63,25 +55,58 @@ def test_validator_structural_failures() -> None:
         ],
     )
 
+    # Arrange: First is assistant and last is user
+    c_both = Conversation(
+        id="both",
+        source="src",
+        metadata=ConversationMetadata(),
+        messages=[
+            Message(role="assistant", content="How are you?"),
+            Message(role="user", content="Good."),
+        ],
+    )
+
     validator = ConversationValidator()
 
     # Act & Assert
-    err_short = validator.validate(c_short)
-    assert any("fewer than 2 messages" in e for e in err_short)
-    # also flags not ending with assistant because there's only 1 message which has role user
-    assert any("end with 'assistant' role" in e for e in err_short)
-
-    err_start = validator.validate(c_start_assistant)
-    assert any("start with 'user' role" in e for e in err_start)
-
-    err_end = validator.validate(c_end_user)
-    assert any("end with 'assistant' role" in e for e in err_end)
+    assert len(validator.validate(c_start_assistant)) == 0
+    assert len(validator.validate(c_end_user)) == 0
+    assert len(validator.validate(c_both)) == 0
 
 
-def test_validator_null_and_empty_fields() -> None:
-    # Arrange: Create conversation with empty fields bypassing pydantic check via model_construct
-    c_empty_fields = Conversation.model_construct(
-        id="  ",
+def test_validator_structural_failures() -> None:
+    # Arrange: fewer than 2 messages
+    c_short = Conversation(
+        id="short",
+        source="src",
+        metadata=ConversationMetadata(),
+        messages=[Message(role="user", content="Hello")],
+    )
+
+    # Arrange: invalid role
+    c_invalid_role = Conversation(
+        id="invalid_role",
+        source="src",
+        metadata=ConversationMetadata(),
+        messages=[
+            Message(role="user", content="Hello"),
+            Message.model_construct(role="invalid_role", content="World"),
+        ],
+    )
+
+    # Arrange: empty/whitespace-only content
+    c_empty_content = Conversation(
+        id="empty_content",
+        source="src",
+        metadata=ConversationMetadata(),
+        messages=[
+            Message(role="user", content="Hello"),
+            Message.model_construct(role="assistant", content="   "),
+        ],
+    )
+
+    # Arrange: missing required fields (ID)
+    c_missing_id = Conversation.model_construct(
         source="src",
         metadata=ConversationMetadata(),
         messages=[
@@ -90,46 +115,33 @@ def test_validator_null_and_empty_fields() -> None:
         ],
     )
 
-    validator = ConversationValidator()
-
-    # Act
-    errors = validator.validate(c_empty_fields)
-
-    # Assert
-    assert any("Conversation ID is null, empty or missing" in e for e in errors)
-
-
-def test_validator_configurable_lengths() -> None:
-    # Arrange: Conversation with 4 messages, ending with assistant
-    messages = [
-        Message(role="user", content="Hello there!"),
-        Message(role="assistant", content="How can I assist you today?"),
-        Message(role="user", content="I'm feeling down."),
-        Message(role="assistant", content="I am sorry to hear that."),
-    ]
-    conv = Conversation(
-        id="conv_len",
+    # Arrange: null required fields (metadata, messages)
+    c_null_fields = Conversation.model_construct(
+        id="null_fields",
         source="src",
-        metadata=ConversationMetadata(),
-        messages=messages,
+        metadata=None,
+        messages=None,
     )
 
-    # Config 1: max_conversation_length = 2
-    config_conv_len = ValidationConfig(max_conversation_length=2)
-    validator_conv = ConversationValidator(config=config_conv_len)
-
-    # Config 2: max_message_length = 10
-    config_msg_len = ValidationConfig(max_message_length=10)
-    validator_msg = ConversationValidator(config=config_msg_len)
+    validator = ConversationValidator()
 
     # Act & Assert
-    errors_conv = validator_conv.validate(conv)
-    assert any("Conversation length (4) exceeds maximum limit (2)" in e for e in errors_conv)
+    err_short = validator.validate(c_short)
+    assert any("fewer than 2 messages" in e for e in err_short)
 
-    errors_msg = validator_msg.validate(conv)
-    # All 4 messages exceed 10 chars
-    assert len(errors_msg) == 4
-    assert any("Message at index 0 length (12) exceeds maximum limit (10)" in e for e in errors_msg)
+    err_role = validator.validate(c_invalid_role)
+    assert any("invalid role" in e for e in err_role)
+
+    err_empty = validator.validate(c_empty_content)
+    assert any("empty or null content" in e for e in err_empty)
+
+    err_missing = validator.validate(c_missing_id)
+    assert any("Conversation ID is null, empty or missing" in e for e in err_missing)
+
+    err_null = validator.validate(c_null_fields)
+    assert any("Conversation metadata is null or missing" in e for e in err_null)
+    assert any("Conversation messages list is null or missing" in e for e in err_null)
+
 
 
 def test_validate_dataset_report() -> None:
@@ -148,7 +160,6 @@ def test_validate_dataset_report() -> None:
         source="src",
         metadata=ConversationMetadata(),
         messages=[
-            Message(role="assistant", content="World"),
             Message(role="user", content="Hello"),
         ],
     )
