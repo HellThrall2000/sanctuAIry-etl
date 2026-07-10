@@ -6,6 +6,8 @@ from cbt_companion.models.conversation import (
     Message,
 )
 from cbt_companion.models.dataset import DatasetConfig, SourceType
+from cbt_companion.models.filter_report import FilterReport
+from cbt_companion.models.merge_report import MergeReport
 from cbt_companion.models.raw_conversation import (
     ParseReport,
     ParserInfo,
@@ -17,7 +19,6 @@ from cbt_companion.models.validation_report import (
     ValidationConfig,
     ValidationReport,
 )
-from cbt_companion.models.filter_report import FilterReport
 
 __all__ = [
     "DatasetConfig",
@@ -33,4 +34,5 @@ __all__ = [
     "ConversationValidationResult",
     "ValidationReport",
     "FilterReport",
+    "MergeReport",
 ]
