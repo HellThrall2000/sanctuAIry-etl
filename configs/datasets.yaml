@@ -1,0 +1,46 @@
+# ──────────────────────────────────────────────────────────────
+# Dataset Registry Configuration
+# ──────────────────────────────────────────────────────────────
+# Each entry under 'datasets' defines a dataset source.
+#
+# Fields:
+#   key          — Unique identifier used as the lookup key.
+#   name         — Human-readable display name.
+#   source       — "huggingface" or "local".
+#   dataset_id   — Hugging Face dataset ID (required when source is "huggingface").
+#   local_path   — Local storage path relative to project root.
+#   description  — Brief summary of the dataset's purpose.
+#
+# To register a new dataset, add a new entry to the list below.
+# No pipeline code changes are required.
+# ──────────────────────────────────────────────────────────────
+
+datasets:
+  - key: empathetic_dialogues
+    name: EmpatheticDialogues
+    source: huggingface
+    dataset_id: facebook/empathetic_dialogues
+    local_path: datasets/raw/empathetic_dialogues
+    description: >-
+      Multi-turn open-domain dialogue dataset grounded in emotional situations.
+      Used for emotional validation, empathy, and natural conversation training.
+
+  - key: esconv
+    name: ESConv
+    source: huggingface
+    dataset_id: thu-coai/esconv
+    local_path: datasets/raw/esconv
+    description: >-
+      Emotional Support Conversation dataset with strategy-annotated
+      counselor-seeker dialogues. Used for emotional support, multi-turn
+      conversations, and counseling strategy training.
+
+  - key: mental_health_counseling_conversations
+    name: Mental Health Counseling Conversations
+    source: huggingface
+    dataset_id: Amod/mental_health_counseling_conversations
+    local_path: datasets/raw/mental_health_counseling_conversations
+    description: >-
+      Mental health counseling conversations dataset containing
+      therapist-style responses. Used for mental health counseling,
+      therapist-style response generation, and conversational support.

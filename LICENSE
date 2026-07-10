@@ -1,0 +1,42 @@
+SanctuAIry Core Source-Available Non-Commercial License v1.0
+
+Copyright (c) 2026 Padmanava Pal
+
+Permission is granted to any person obtaining a copy of this software and
+associated documentation files ("Software") to:
+
+• Use the Software for personal purposes.
+• Use the Software for educational purposes.
+• Use the Software for academic and non-commercial research.
+• Study the Software.
+• Modify the Software.
+• Fork the Software.
+• Share unmodified or modified copies of the Software provided this license
+  and copyright notice are retained.
+
+The following activities are NOT permitted without prior written permission
+from the copyright holder:
+
+• Commercial use of the Software.
+• Selling the Software.
+• Selling derivative works.
+• Using the Software within commercial products or services.
+• Providing the Software as a paid API or SaaS.
+• Internal commercial business use.
+• Redistributing trained models for commercial purposes when produced using
+  this repository.
+
+This repository is source-available.
+
+It is NOT licensed under an OSI-approved open source license because
+commercial use is restricted.
+
+Commercial licensing requests may be directed to the copyright holder.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM, OUT OF OR IN CONNECTION WITH
+THE SOFTWARE OR THE USE OF THE SOFTWARE.
