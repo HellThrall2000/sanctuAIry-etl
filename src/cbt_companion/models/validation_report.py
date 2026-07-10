@@ -6,15 +6,8 @@ from pydantic import BaseModel, Field
 
 
 class ValidationConfig(BaseModel):
-    """Configuration model for dataset validation threshold settings.
-
-    Attributes:
-        max_message_length: Optional character limit for individual messages.
-        max_conversation_length: Optional limit on the number of messages/turns.
-    """
-
-    max_message_length: int | None = None
-    max_conversation_length: int | None = None
+    """Configuration model for dataset validation threshold settings."""
+    pass
 
 
 class ConversationValidationResult(BaseModel):

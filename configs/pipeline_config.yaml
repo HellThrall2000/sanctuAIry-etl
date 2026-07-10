@@ -1,0 +1,15 @@
+# End-to-end dataset pipeline runner configuration
+datasets:
+  - facebook/empathetic_dialogues
+  - thu-coai/esconv
+  - Amod/mental_health_counseling_conversations
+split: train
+validation: {}
+sampling:
+  sample_size: 100
+  seed: 42
+outputs:
+  statistics_json: outputs/reports/statistics.json
+  statistics_md: outputs/reports/statistics.md
+  review_sample_json: outputs/review/review_sample.json
+  review_sample_md: outputs/review/review_sample.md

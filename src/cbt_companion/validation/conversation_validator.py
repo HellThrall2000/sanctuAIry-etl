@@ -8,18 +8,22 @@ from cbt_companion.validation.base import BaseValidator
 
 
 class ConversationValidator(BaseValidator):
-    """Structural validator for canonical Conversation objects."""
+    """Structural validator for canonical Conversation objects.
+
+    This validator verifies only structural integrity and makes no assumptions
+    about conversation flow, turn sequence, or speaker order.
+    """
 
     def __init__(self, config: ValidationConfig | None = None) -> None:
         """Initialize the validator.
 
         Args:
-            config: Optional ValidationConfig threshold settings.
+            config: Optional ValidationConfig settings.
         """
         self.config = config or ValidationConfig()
 
     def validate(self, conversation: Conversation) -> list[str]:
-        """Validate a single Conversation against structural and config thresholds.
+        """Validate a single Conversation for structural integrity.
 
         Args:
             conversation: The canonical Conversation to validate.
@@ -48,27 +52,7 @@ class ConversationValidator(BaseValidator):
         if num_messages < 2:
             errors.append(f"Conversation has fewer than 2 messages (got {num_messages}).")
 
-        if (
-            self.config.max_conversation_length is not None
-            and num_messages > self.config.max_conversation_length
-        ):
-            errors.append(
-                f"Conversation length ({num_messages}) exceeds maximum limit "
-                f"({self.config.max_conversation_length})."
-            )
-
-        # 3. Role sequence checks (starts with user, ends with assistant)
-        if num_messages >= 1:
-            first_role = getattr(conversation.messages[0], "role", None)
-            if first_role != "user":
-                errors.append(f"Conversation must start with 'user' role (got '{first_role}').")
-
-        if num_messages >= 1:
-            last_role = getattr(conversation.messages[-1], "role", None)
-            if last_role != "assistant":
-                errors.append(f"Conversation must end with 'assistant' role (got '{last_role}').")
-
-        # 4. Message-level checks (roles, empty content, character length)
+        # 4. Message-level checks (roles, empty content)
         for idx, msg in enumerate(conversation.messages):
             if msg is None:
                 errors.append(f"Message at index {idx} is null.")
@@ -82,15 +66,5 @@ class ConversationValidator(BaseValidator):
             if content is None or not str(content).strip():
                 errors.append(f"Message at index {idx} has empty or null content.")
                 continue
-
-            char_len = len(content)
-            if (
-                self.config.max_message_length is not None
-                and char_len > self.config.max_message_length
-            ):
-                errors.append(
-                    f"Message at index {idx} length ({char_len}) exceeds maximum limit "
-                    f"({self.config.max_message_length})."
-                )
 
         return errors
