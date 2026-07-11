@@ -8,7 +8,13 @@ validation: {}
 sampling:
   sample_size: 100
   seed: 42
+dataset_version: "1.0.0"
 outputs:
+  canonical_dataset_jsonl: outputs/final/canonical_dataset.jsonl
+  deduplicated_dataset_jsonl: outputs/final/deduplicated_dataset.jsonl
+  manifest_json: outputs/final/manifest.json
+  duplicate_report_json: outputs/reports/duplicate_report.json
+  duplicate_report_md: outputs/reports/duplicate_report.md
   statistics_json: outputs/reports/statistics.json
   statistics_md: outputs/reports/statistics.md
   review_sample_json: outputs/review/review_sample.json

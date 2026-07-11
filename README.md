@@ -68,6 +68,16 @@ pip install -e ".[dev]"
 - **Pathlib-first**: All file system operations use `pathlib.Path`.
 - **Type-safe**: Strict type hints on all public interfaces.
 
+## Canonical Dataset
+
+After the pipeline completes (load → parse → normalize → validate → filter → merge → export), the frozen canonical dataset is written to:
+
+```
+outputs/final/canonical_dataset.jsonl
+```
+
+This file contains one canonical `Conversation` JSON object per line (JSONL format, UTF-8 encoded). It preserves the full Pydantic schema including all metadata fields. This is the single source of truth for all downstream offline curation, quality review, and model training — no further transformations are applied to the pipeline output beyond this point.
+
 ## License
 
 MIT
