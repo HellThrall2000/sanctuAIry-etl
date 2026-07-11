@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import os
 import sys
 from pathlib import Path
 
 import yaml
 
+from cbt_companion.analytics.canonical_exporter import CanonicalDatasetExporter
+from cbt_companion.analytics.deduplicator import ConversationDeduplicator
 from cbt_companion.analytics.review_exporter import ReviewExporter
 from cbt_companion.analytics.statistics_tool import StatisticsTool
 from cbt_companion.core.registry import DatasetRegistry
@@ -72,7 +76,7 @@ def parse_and_validate_config(config_path: Path) -> dict:
         raise PipelineConfigError(f"Invalid config at {config_path}: root must be a dictionary.")
 
     # Validate required top-level fields
-    for field in ("datasets", "split", "validation", "sampling", "outputs"):
+    for field in ("datasets", "split", "validation", "sampling", "outputs", "dataset_version"):
         if field not in config:
             raise PipelineConfigError(f"Missing required configuration field: '{field}'")
 
@@ -99,9 +103,22 @@ def parse_and_validate_config(config_path: Path) -> dict:
     outputs = config["outputs"]
     if not isinstance(outputs, dict):
         raise PipelineConfigError("'outputs' must be a dictionary.")
-    for f in ("statistics_json", "statistics_md", "review_sample_json", "review_sample_md"):
+    for f in (
+        "statistics_json",
+        "statistics_md",
+        "review_sample_json",
+        "review_sample_md",
+        "canonical_dataset_jsonl",
+        "deduplicated_dataset_jsonl",
+        "manifest_json",
+        "duplicate_report_json",
+        "duplicate_report_md",
+    ):
         if f not in outputs or not isinstance(outputs[f], str) or not outputs[f].strip():
             raise PipelineConfigError(f"'outputs.{f}' must be a non-empty string filepath.")
+
+    if not isinstance(config["dataset_version"], str) or not config["dataset_version"].strip():
+        raise PipelineConfigError("'dataset_version' must be a non-empty string.")
 
     return config
 
@@ -189,10 +206,15 @@ def verify_dry_run(config: dict, dataset_registry: DatasetRegistry) -> None:
         f"  - seed: {config['sampling']['seed']}",
         "",
         "Configured outputs:",
-        f"  - Statistics JSON: {config['outputs']['statistics_json']}",
-        f"  - Statistics MD:   {config['outputs']['statistics_md']}",
-        f"  - Review JSON:     {config['outputs']['review_sample_json']}",
-        f"  - Review MD:       {config['outputs']['review_sample_md']}",
+        f"  - Canonical JSONL:     {config['outputs']['canonical_dataset_jsonl']}",
+        f"  - Deduplicated JSONL:  {config['outputs']['deduplicated_dataset_jsonl']}",
+        f"  - Manifest JSON:       {config['outputs']['manifest_json']}",
+        f"  - Duplicate JSON Rep:  {config['outputs']['duplicate_report_json']}",
+        f"  - Duplicate MD Rep:    {config['outputs']['duplicate_report_md']}",
+        f"  - Statistics JSON:     {config['outputs']['statistics_json']}",
+        f"  - Statistics MD:       {config['outputs']['statistics_md']}",
+        f"  - Review JSON:         {config['outputs']['review_sample_json']}",
+        f"  - Review MD:           {config['outputs']['review_sample_md']}",
         "=" * 60,
         "",
     ])
@@ -272,11 +294,70 @@ def execute_pipeline(config: dict, dataset_registry: DatasetRegistry) -> None:
     merge_report = merger.merge(datasets_to_merge)
     print(f"[+] Merged dataset has {merge_report.total_conversations} conversations.")
 
-    # 7. Compute statistics
+    # 7. Export canonical dataset to JSONL
+    canonical_path = config["outputs"]["canonical_dataset_jsonl"]
+    print("[*] Exporting canonical dataset...")
+    num_exported = CanonicalDatasetExporter.export(
+        merge_report.merged_conversations,
+        canonical_path,
+    )
+    file_size_bytes = Path(canonical_path).stat().st_size
+    if file_size_bytes >= 1_048_576:
+        size_str = f"{file_size_bytes / 1_048_576:.2f} MB"
+    else:
+        size_str = f"{file_size_bytes / 1024:.2f} KB"
+    print(f"[+] Exported {num_exported} conversations to {canonical_path} ({size_str})")
+
+    # 8. Deduplicate canonical dataset
+    print("[*] Performing exact conversation deduplication...")
+    dedup_results = ConversationDeduplicator.deduplicate(
+        merge_report.merged_conversations,
+        dataset_version=config["dataset_version"],
+    )
+    deduplicated_convs, manifest, dup_report_json, dup_report_md = dedup_results
+
+    # Write deduplicated JSONL
+    dedup_path = config["outputs"]["deduplicated_dataset_jsonl"]
+    print("[*] Exporting deduplicated dataset...")
+    num_dedup_exported = CanonicalDatasetExporter.export(deduplicated_convs, dedup_path)
+    dedup_size_bytes = Path(dedup_path).stat().st_size
+    if dedup_size_bytes >= 1_048_576:
+        dedup_size_str = f"{dedup_size_bytes / 1_048_576:.2f} MB"
+    else:
+        dedup_size_str = f"{dedup_size_bytes / 1024:.2f} KB"
+    print(f"[+] Exported {num_dedup_exported} conversations to {dedup_path} ({dedup_size_str})")
+
+    # Write manifest.json
+    manifest_path = config["outputs"]["manifest_json"]
+    os.makedirs(os.path.dirname(os.path.abspath(manifest_path)), exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2, ensure_ascii=False)
+
+    # Write duplicate_report.json
+    rep_json_path = config["outputs"]["duplicate_report_json"]
+    os.makedirs(os.path.dirname(os.path.abspath(rep_json_path)), exist_ok=True)
+    with open(rep_json_path, "w", encoding="utf-8") as f:
+        json.dump(dup_report_json, f, indent=2, ensure_ascii=False)
+
+    # Write duplicate_report.md
+    rep_md_path = config["outputs"]["duplicate_report_md"]
+    os.makedirs(os.path.dirname(os.path.abspath(rep_md_path)), exist_ok=True)
+    with open(rep_md_path, "w", encoding="utf-8") as f:
+        f.write(dup_report_md)
+
+    # Update MergeReport for downstream analytics to reflect deduplicated dataset
+    merge_report.merged_conversations = deduplicated_convs
+    merge_report.total_conversations = len(deduplicated_convs)
+    new_counts = {}
+    for conv in deduplicated_convs:
+        new_counts[conv.source] = new_counts.get(conv.source, 0) + 1
+    merge_report.contribution_counts = new_counts
+
+    # 9. Compute statistics
     print("[*] Computing dataset statistics...")
     stats_report = StatisticsTool.compute_statistics(merge_report)
 
-    # 8. Deterministic sampling & exports
+    # 10. Deterministic sampling & exports
     print("[*] Generating review sample and exporting reports...")
     sample_size = config["sampling"]["sample_size"]
     seed = config["sampling"]["seed"]
@@ -298,10 +379,20 @@ def execute_pipeline(config: dict, dataset_registry: DatasetRegistry) -> None:
 
     print("\n" + "=" * 40)
     print("PIPELINE EXECUTION COMPLETED SUCCESSFULLY!")
-    print(f"Statistics JSON:  {config['outputs']['statistics_json']}")
-    print(f"Statistics MD:    {config['outputs']['statistics_md']}")
-    print(f"Review Sample JSON: {config['outputs']['review_sample_json']}")
-    print(f"Review Sample MD:   {config['outputs']['review_sample_md']}")
+    print(f"Conversations before: {manifest['total_conversations_before']}")
+    print(f"Duplicates removed:   {manifest['duplicates_removed']}")
+    print(f"Conversations after:  {manifest['total_conversations_after']}")
+    print(f"Duplicate percentage: {manifest['duplicate_percentage']:.2f}%")
+    print("-" * 40)
+    print(f"Canonical JSONL:      {canonical_path}")
+    print(f"Deduplicated JSONL:   {dedup_path}")
+    print(f"Manifest JSON:        {manifest_path}")
+    print(f"Duplicate JSON Rep:   {rep_json_path}")
+    print(f"Duplicate MD Rep:     {rep_md_path}")
+    print(f"Statistics JSON:      {config['outputs']['statistics_json']}")
+    print(f"Statistics MD:        {config['outputs']['statistics_md']}")
+    print(f"Review Sample JSON:   {config['outputs']['review_sample_json']}")
+    print(f"Review Sample MD:     {config['outputs']['review_sample_md']}")
     print("=" * 40 + "\n")
 
 
