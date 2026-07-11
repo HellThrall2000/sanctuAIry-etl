@@ -14,12 +14,13 @@ from cbt_companion.models.raw_conversation import (
     RawConversation,
     RawMessage,
 )
+from cbt_companion.models.statistics_report import StatisticsReport
+from cbt_companion.models.token_statistics import TokenStatisticsReport
 from cbt_companion.models.validation_report import (
     ConversationValidationResult,
     ValidationConfig,
     ValidationReport,
 )
-from cbt_companion.models.statistics_report import StatisticsReport
 
 __all__ = [
     "DatasetConfig",
@@ -37,4 +38,5 @@ __all__ = [
     "FilterReport",
     "MergeReport",
     "StatisticsReport",
+    "TokenStatisticsReport",
 ]
