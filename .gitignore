@@ -48,8 +48,9 @@ datasets/final/*
 !datasets/final/.gitkeep
 
 # Outputs and training artifacts
-outputs/*
-!outputs/.gitkeep
+outputs/final/
+outputs/training/
+outputs/review/
 training/*.pt
 training/*.bin
 training/*.safetensors
