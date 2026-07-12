@@ -1,0 +1,26 @@
+{
+  "total_conversations": 19679,
+  "total_tokens": 3971608,
+  "average_tokens": 201.82,
+  "median_tokens": 141.0,
+  "minimum_tokens": 41,
+  "maximum_tokens": 23029,
+  "percentile_95_tokens": 584,
+  "percentile_99_tokens": 1213,
+  "average_turns_per_conversation": 5.17,
+  "recommended_context_length": 2048,
+  "conversations_over_1024": 376,
+  "conversations_over_2048": 15,
+  "conversations_over_4096": 3,
+  "conversations_over_8192": 2,
+  "histogram": {
+    "0-128": 6847,
+    "129-256": 10596,
+    "257-512": 1163,
+    "513-1024": 697,
+    "1025-2048": 361,
+    "2049-4096": 12,
+    "4097-8192": 1,
+    "8193+": 2
+  }
+}
