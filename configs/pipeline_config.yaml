@@ -9,6 +9,37 @@ sampling:
   sample_size: 100
   seed: 42
 dataset_version: "1.0.0"
+
+# ──────────────────────────────────────────────────────────────
+# Curation — turns the deduplicated corpus into training splits.
+#
+# The merged corpus is ~86% EmpatheticDialogues, whose turns average ~36
+# characters of casual peer chat and carry `_comma_` placeholder artifacts.
+# Left unbalanced it dominates the gradient and teaches short, generic,
+# artifact-laden replies. Cleaning, quality rules and per-source caps below
+# rebalance it toward the counselling-style sources.
+# ──────────────────────────────────────────────────────────────
+curation:
+  enabled: true
+  system_prompt_file: prompts/cbt_system_prompt.txt
+  split_ratio: 0.95
+  seed: 42
+  cleaning:
+    strip_urls: true
+  quality:
+    # Applies to the final assistant turn, the primary generation target.
+    min_assistant_chars: 40
+    # Short backchannels are normal in counselling dialogue; only reject a
+    # conversation when they dominate it.
+    max_short_assistant_ratio: 0.5
+    echo_similarity_threshold: 0.8
+    min_messages: 2
+  # null (or an omitted key) leaves a source uncapped.
+  source_caps:
+    facebook/empathetic_dialogues: 2500
+    thu-coai/esconv: null
+    Amod/mental_health_counseling_conversations: null
+
 outputs:
   canonical_dataset_jsonl: outputs/final/canonical_dataset.jsonl
   deduplicated_dataset_jsonl: outputs/final/deduplicated_dataset.jsonl
@@ -19,3 +50,7 @@ outputs:
   statistics_md: outputs/reports/statistics.md
   review_sample_json: outputs/review/review_sample.json
   review_sample_md: outputs/review/review_sample.md
+  train_jsonl: outputs/training/train.jsonl
+  validation_jsonl: outputs/training/validation.jsonl
+  curation_report_json: outputs/reports/curation_report.json
+  curation_report_md: outputs/reports/curation_report.md
