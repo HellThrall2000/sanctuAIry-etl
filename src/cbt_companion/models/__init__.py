@@ -5,6 +5,11 @@ from cbt_companion.models.conversation import (
     ConversationMetadata,
     Message,
 )
+from cbt_companion.models.curation_report import (
+    CleaningStats,
+    CurationReport,
+    QualityStats,
+)
 from cbt_companion.models.dataset import DatasetConfig, SourceType
 from cbt_companion.models.filter_report import FilterReport
 from cbt_companion.models.merge_report import MergeReport
@@ -39,4 +44,7 @@ __all__ = [
     "MergeReport",
     "StatisticsReport",
     "TokenStatisticsReport",
+    "CleaningStats",
+    "QualityStats",
+    "CurationReport",
 ]

@@ -1,0 +1,38 @@
+{
+  "cleaning": {
+    "messages_seen": 107307,
+    "messages_changed": 31594,
+    "replacements": {
+      "_comma_": 26031,
+      "missing_space": 3643,
+      "url": 134
+    }
+  },
+  "quality": {
+    "num_seen": 20715,
+    "num_kept": 17107,
+    "drops_by_reason": {
+      "too_few_messages": 3502,
+      "mostly_short_responses": 85,
+      "assistant_echoes_user": 21
+    }
+  },
+  "counts_before": {
+    "facebook/empathetic_dialogues": 17780,
+    "thu-coai/esconv": 910,
+    "Amod/mental_health_counseling_conversations": 2025
+  },
+  "counts_after_quality": {
+    "facebook/empathetic_dialogues": 14192,
+    "thu-coai/esconv": 893,
+    "Amod/mental_health_counseling_conversations": 2022
+  },
+  "counts_after_sampling": {
+    "Amod/mental_health_counseling_conversations": 2022,
+    "facebook/empathetic_dialogues": 2500,
+    "thu-coai/esconv": 893
+  },
+  "num_train": 5144,
+  "num_validation": 271,
+  "seed": 42
+}

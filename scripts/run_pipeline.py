@@ -16,6 +16,13 @@ from cbt_companion.analytics.deduplicator import ConversationDeduplicator
 from cbt_companion.analytics.review_exporter import ReviewExporter
 from cbt_companion.analytics.statistics_tool import StatisticsTool
 from cbt_companion.core.registry import DatasetRegistry
+from cbt_companion.curation.chat_formatter import ChatFormatter
+from cbt_companion.curation.curator import DatasetCurator
+from cbt_companion.curation.quality_filter import QualityFilter
+from cbt_companion.curation.report_writer import CurationReportWriter
+from cbt_companion.curation.sampler import SourceSampler
+from cbt_companion.curation.text_cleaner import TextCleaner
+from cbt_companion.curation.trimmer import ConversationTrimmer
 from cbt_companion.filters.conversation_filter import ConversationFilter
 from cbt_companion.filters.registry import FilterRegistry
 from cbt_companion.mergers.conversation_merger import ConversationMerger
@@ -113,12 +120,41 @@ def parse_and_validate_config(config_path: Path) -> dict:
         "manifest_json",
         "duplicate_report_json",
         "duplicate_report_md",
+        "train_jsonl",
+        "validation_jsonl",
+        "curation_report_json",
+        "curation_report_md",
     ):
         if f not in outputs or not isinstance(outputs[f], str) or not outputs[f].strip():
             raise PipelineConfigError(f"'outputs.{f}' must be a non-empty string filepath.")
 
     if not isinstance(config["dataset_version"], str) or not config["dataset_version"].strip():
         raise PipelineConfigError("'dataset_version' must be a non-empty string.")
+
+    curation = config.get("curation")
+    if curation is not None:
+        if not isinstance(curation, dict):
+            raise PipelineConfigError("'curation' must be a dictionary.")
+
+        ratio = curation.get("split_ratio", 0.95)
+        if not isinstance(ratio, (int, float)) or not 0.0 < float(ratio) < 1.0:
+            raise PipelineConfigError("'curation.split_ratio' must be a float between 0 and 1.")
+
+        if not isinstance(curation.get("seed", 42), int):
+            raise PipelineConfigError("'curation.seed' must be an integer.")
+
+        caps = curation.get("source_caps", {})
+        if not isinstance(caps, dict):
+            raise PipelineConfigError("'curation.source_caps' must be a dictionary.")
+        for source, cap in caps.items():
+            if cap is not None and (not isinstance(cap, int) or cap < 1):
+                raise PipelineConfigError(
+                    f"'curation.source_caps.{source}' must be a positive integer or null."
+                )
+
+        prompt_file = curation.get("system_prompt_file")
+        if prompt_file is not None and not isinstance(prompt_file, str):
+            raise PipelineConfigError("'curation.system_prompt_file' must be a string path.")
 
     return config
 
@@ -215,11 +251,85 @@ def verify_dry_run(config: dict, dataset_registry: DatasetRegistry) -> None:
         f"  - Statistics MD:       {config['outputs']['statistics_md']}",
         f"  - Review JSON:         {config['outputs']['review_sample_json']}",
         f"  - Review MD:           {config['outputs']['review_sample_md']}",
+        "",
+        "Curation settings:",
+    ])
+
+    curation = config.get("curation") or {}
+    if not curation.get("enabled", True):
+        plan_lines.append("  - DISABLED (no training splits will be written)")
+    else:
+        caps = curation.get("source_caps") or {}
+        quality = curation.get("quality") or {}
+        plan_lines.extend([
+            f"  - system_prompt_file: {curation.get('system_prompt_file') or '(none)'}",
+            f"  - split_ratio: {curation.get('split_ratio', 0.95)}",
+            f"  - min_assistant_chars: {quality.get('min_assistant_chars', 40)}",
+            f"  - echo_similarity_threshold: {quality.get('echo_similarity_threshold', 0.8)}",
+            "  - source caps:",
+        ])
+        for source in config["datasets"]:
+            cap = caps.get(source)
+            plan_lines.append(f"      {source}: {cap if cap is not None else 'uncapped'}")
+        plan_lines.extend([
+            f"  - Train JSONL:         {config['outputs']['train_jsonl']}",
+            f"  - Validation JSONL:    {config['outputs']['validation_jsonl']}",
+            f"  - Curation Rep JSON:   {config['outputs']['curation_report_json']}",
+            f"  - Curation Rep MD:     {config['outputs']['curation_report_md']}",
+        ])
+
+    plan_lines.extend([
         "=" * 60,
         "",
     ])
 
     print("\n".join(plan_lines))
+
+
+def build_curator(config: dict) -> DatasetCurator | None:
+    """Assemble the curation stage from configuration.
+
+    Args:
+        config: The validated pipeline configuration.
+
+    Returns:
+        A configured DatasetCurator, or None when curation is disabled.
+
+    Raises:
+        PipelineConfigError: If the configured system prompt file is missing.
+    """
+    curation = config.get("curation") or {}
+    if not curation.get("enabled", True):
+        return None
+
+    system_prompt = None
+    prompt_file = curation.get("system_prompt_file")
+    if prompt_file:
+        prompt_path = Path(prompt_file)
+        if not prompt_path.exists():
+            raise PipelineConfigError(f"Curation system prompt file not found: {prompt_path}")
+        system_prompt = prompt_path.read_text(encoding="utf-8")
+
+    cleaning = curation.get("cleaning") or {}
+    quality = curation.get("quality") or {}
+    seed = curation.get("seed", 42)
+
+    return DatasetCurator(
+        cleaner=TextCleaner(strip_urls=cleaning.get("strip_urls", True)),
+        quality_filter=QualityFilter(
+            min_assistant_chars=quality.get("min_assistant_chars", 40),
+            max_short_assistant_ratio=quality.get("max_short_assistant_ratio", 0.5),
+            echo_similarity_threshold=quality.get("echo_similarity_threshold", 0.8),
+            min_messages=quality.get("min_messages", 2),
+        ),
+        trimmer=ConversationTrimmer(
+            min_final_assistant_chars=quality.get("min_assistant_chars", 40),
+        ),
+        sampler=SourceSampler(curation.get("source_caps") or {}, seed=seed),
+        formatter=ChatFormatter(system_prompt),
+        split_ratio=float(curation.get("split_ratio", 0.95)),
+        seed=seed,
+    )
 
 
 def execute_pipeline(config: dict, dataset_registry: DatasetRegistry) -> None:
@@ -377,6 +487,28 @@ def execute_pipeline(config: dict, dataset_registry: DatasetRegistry) -> None:
         config["outputs"]["review_sample_md"],
     )
 
+    # 11. Curate the deduplicated corpus into supervised fine-tuning splits
+    curator = build_curator(config)
+    curation_report = None
+    if curator is None:
+        print("[*] Curation stage disabled; skipping training export.")
+    else:
+        print("[*] Curating training splits (clean -> quality -> rebalance -> split)...")
+        curation_report = curator.curate(
+            deduplicated_convs,
+            Path(config["outputs"]["train_jsonl"]),
+            Path(config["outputs"]["validation_jsonl"]),
+        )
+        CurationReportWriter.export(
+            curation_report,
+            Path(config["outputs"]["curation_report_json"]),
+            Path(config["outputs"]["curation_report_md"]),
+        )
+        print(
+            f"[+] Curated {curation_report.num_train} training and "
+            f"{curation_report.num_validation} validation conversations."
+        )
+
     print("\n" + "=" * 40)
     print("PIPELINE EXECUTION COMPLETED SUCCESSFULLY!")
     print(f"Conversations before: {manifest['total_conversations_before']}")
@@ -393,6 +525,17 @@ def execute_pipeline(config: dict, dataset_registry: DatasetRegistry) -> None:
     print(f"Statistics MD:        {config['outputs']['statistics_md']}")
     print(f"Review Sample JSON:   {config['outputs']['review_sample_json']}")
     print(f"Review Sample MD:     {config['outputs']['review_sample_md']}")
+    if curation_report is not None:
+        print("-" * 40)
+        print(f"Training JSONL:       {config['outputs']['train_jsonl']}")
+        print(f"Validation JSONL:     {config['outputs']['validation_jsonl']}")
+        print(f"Curation Report JSON: {config['outputs']['curation_report_json']}")
+        print(f"Curation Report MD:   {config['outputs']['curation_report_md']}")
+        print("-" * 40)
+        print(f"Train conversations:  {curation_report.num_train}")
+        print(f"Val conversations:    {curation_report.num_validation}")
+        for source, count in sorted(curation_report.counts_after_sampling.items()):
+            print(f"  {source}: {count}")
     print("=" * 40 + "\n")
 
 
